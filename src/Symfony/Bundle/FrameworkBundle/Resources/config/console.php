@@ -47,6 +47,7 @@ use Symfony\Component\ErrorHandler\Command\ErrorDumpCommand;
 use Symfony\Component\Form\Command\DebugCommand;
 use Symfony\Component\Messenger\Command\ConsumeMessagesCommand;
 use Symfony\Component\Messenger\Command\DebugCommand as MessengerDebugCommand;
+use Symfony\Component\Messenger\Command\DebugRoutingCommand as MessengerDebugRoutingCommand;
 use Symfony\Component\Messenger\Command\FailedMessagesRemoveCommand;
 use Symfony\Component\Messenger\Command\FailedMessagesRetryCommand;
 use Symfony\Component\Messenger\Command\FailedMessagesShowCommand;
@@ -185,6 +186,13 @@ return static function (ContainerConfigurator $container) {
         ->set('console.command.messenger_debug', MessengerDebugCommand::class)
             ->args([
                 [], // Message to handlers mapping
+            ])
+            ->tag('console.command')
+
+        ->set('console.command.messenger_debug_routing', MessengerDebugRoutingCommand::class)
+            ->args([
+                [], // Message to senders mapping
+                [], // Sender aliases mapping
             ])
             ->tag('console.command')
 

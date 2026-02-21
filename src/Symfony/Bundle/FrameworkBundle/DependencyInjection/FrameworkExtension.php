@@ -615,6 +615,7 @@ class FrameworkExtension extends Extension
             $container->removeDefinition('console.command.messenger_consume_messages');
             $container->removeDefinition('console.command.messenger_stats');
             $container->removeDefinition('console.command.messenger_debug');
+            $container->removeDefinition('console.command.messenger_debug_routing');
             $container->removeDefinition('console.command.messenger_stop_workers');
             $container->removeDefinition('console.command.messenger_setup_transports');
             $container->removeDefinition('console.command.messenger_failed_messages_retry');
@@ -2437,6 +2438,7 @@ class FrameworkExtension extends Extension
 
         if (!$this->hasConsole()) {
             $container->removeDefinition('console.command.messenger_stats');
+            $container->removeDefinition('console.command.messenger_debug_routing');
         }
 
         $loader->load('messenger.php');

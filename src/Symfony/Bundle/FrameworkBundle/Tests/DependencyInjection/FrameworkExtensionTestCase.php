@@ -976,6 +976,7 @@ abstract class FrameworkExtensionTestCase extends TestCase
         $this->assertSame([], $messengerDefinitions);
         $this->assertFalse($container->hasDefinition('console.command.messenger_consume_messages'));
         $this->assertFalse($container->hasDefinition('console.command.messenger_debug'));
+        $this->assertFalse($container->hasDefinition('console.command.messenger_debug_routing'));
         $this->assertFalse($container->hasDefinition('console.command.messenger_stop_workers'));
         $this->assertFalse($container->hasDefinition('console.command.messenger_setup_transports'));
         $this->assertFalse($container->hasDefinition('console.command.messenger_failed_messages_retry'));
@@ -1015,6 +1016,7 @@ abstract class FrameworkExtensionTestCase extends TestCase
 
         $this->assertTrue($container->hasDefinition('messenger.receiver_locator'));
         $this->assertTrue($container->hasDefinition('console.command.messenger_consume_messages'));
+        $this->assertTrue($container->hasDefinition('console.command.messenger_debug_routing'));
         $this->assertTrue($container->hasAlias('messenger.default_bus'));
         $this->assertTrue($container->getAlias('messenger.default_bus')->isPublic());
         $this->assertTrue($container->hasDefinition('messenger.transport_factory'));

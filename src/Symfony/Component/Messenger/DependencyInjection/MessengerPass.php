@@ -50,6 +50,7 @@ class MessengerPass implements CompilerPassInterface
         }
 
         $this->registerHandlers($container, $busIds);
+        $this->registerRoutingDebugCommand($container);
     }
 
     private function registerHandlers(ContainerBuilder $container, array $busIds): void
@@ -403,5 +404,31 @@ class MessengerPass implements CompilerPassInterface
 
             return $definition->getClass();
         }
+    }
+
+    private function registerRoutingDebugCommand(ContainerBuilder $container): void
+    {
+        if (!$container->hasDefinition('console.command.messenger_debug_routing') || !$container->hasDefinition('messenger.senders_locator')) {
+            return;
+        }
+
+        $sendersMap = $container->getDefinition('messenger.senders_locator')->getArgument(0);
+        if (!\is_array($sendersMap)) {
+            $sendersMap = [];
+        }
+
+        $senderAliases = [];
+        foreach ($container->findTaggedServiceIds('messenger.receiver') as $id => $tags) {
+            foreach ($tags as $tag) {
+                if (isset($tag['alias'])) {
+                    $senderAliases[$tag['alias']] = $id;
+                }
+            }
+        }
+
+        $container->getDefinition('console.command.messenger_debug_routing')
+            ->replaceArgument(0, $sendersMap)
+            ->replaceArgument(1, $senderAliases)
+        ;
     }
 }
