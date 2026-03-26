@@ -34,12 +34,31 @@ class DebugRoutingCommandTest extends TestCase
         putenv($this->colSize ? 'COLUMNS='.$this->colSize : 'COLUMNS');
     }
 
-    public function testOutput()
+    /**
+     * Example config:
+     * messenger:
+     *     transports:
+     *         async: '%env(MESSENGER_TRANSPORT_DSN)%'
+     *         sync: 'sync://'
+     *     routing:
+     *         'App\\Message\\FirstMessage': ['async']
+     *         'App\\Message\\SecondMessage': ['sync']
+     *         # custom_sender refers to a sender service id registered in the container,
+     *         # not a transport alias.
+     *         'App\\Message\\ThirdMessage': ['custom_sender']
+     *
+     * services:
+     *     custom_sender:
+     *         class: App\\Messenger\\CustomSender
+     *         # CustomSender implements Symfony\\Component\\Messenger\\Transport\\Sender\\SenderInterface
+     */
+    public function testOutputListsSendersAndCustomSenders(): void
     {
         $command = new DebugRoutingCommand(
             [
                 'App\Message\FirstMessage' => ['messenger.transport.async'],
                 'App\Message\SecondMessage' => ['messenger.transport.sync'],
+                'App\Message\ThirdMessage' => ['custom_sender'],
             ],
             [
                 'failed' => 'messenger.transport.failed',
@@ -47,11 +66,11 @@ class DebugRoutingCommandTest extends TestCase
                 'sync' => 'messenger.transport.sync',
             ],
         );
-
         $tester = new CommandTester($command);
+
         $tester->execute([], ['decorated' => false]);
 
-        $this->assertSame(<<<'TXT'
+        $this->assertSame(sprintf(<<<'TXT'
 
             Messenger Routing
             =================
@@ -63,10 +82,17 @@ class DebugRoutingCommandTest extends TestCase
 
               App\Message\FirstMessage
 
+            custom_sender
+            -------------
+
+             The following messages are routed to this sender:
+
+              App\Message\ThirdMessage
+
             failed
             ------
 
-             [WARNING] No message is routed to transport "failed".                                                                  
+            %s
 
             sync
             ----
@@ -76,7 +102,24 @@ class DebugRoutingCommandTest extends TestCase
               App\Message\SecondMessage
 
 
-            TXT, $tester->getDisplay(true));
+            TXT, $this->padWarning('No message is routed to sender "failed".')), $tester->getDisplay(true));
+    }
+
+    public function testOutputFiltersBySenderArgument(): void
+    {
+        $command = new DebugRoutingCommand(
+            [
+                'App\Message\FirstMessage' => ['messenger.transport.async'],
+                'App\Message\SecondMessage' => ['messenger.transport.sync'],
+                'App\Message\ThirdMessage' => ['custom_sender'],
+            ],
+            [
+                'failed' => 'messenger.transport.failed',
+                'async' => 'messenger.transport.async',
+                'sync' => 'messenger.transport.sync',
+            ],
+        );
+        $tester = new CommandTester($command);
 
         $tester->execute(['sender' => 'sync'], ['decorated' => false]);
 
@@ -96,7 +139,7 @@ class DebugRoutingCommandTest extends TestCase
             TXT, $tester->getDisplay(true));
     }
 
-    public function testExceptionOnUnknownTransportArgument()
+    public function testThrowsOnUnknownSenderArgument(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Sender "invalid" does not exist. Known senders are "async", "sync".');
@@ -112,26 +155,26 @@ class DebugRoutingCommandTest extends TestCase
         $tester->execute(['sender' => 'invalid'], ['decorated' => false]);
     }
 
-    public function testOutputWithoutTransport()
+    public function testOutputWhenNoTransportIsRegistered(): void
     {
         $command = new DebugRoutingCommand([], []);
 
         $tester = new CommandTester($command);
         $tester->execute([], ['decorated' => false]);
 
-        $this->assertSame(<<<'TXT'
+        $this->assertSame(sprintf(<<<'TXT'
 
             Messenger Routing
             =================
 
-             [WARNING] No Messenger transport is registered.                                                                        
+            %s
 
 
-            TXT, $tester->getDisplay(true));
+            TXT, $this->padWarning('No Messenger sender is registered.')), $tester->getDisplay(true));
     }
 
     #[DataProvider('provideCompletionSuggestions')]
-    public function testComplete(array $input, array $expectedSuggestions)
+    public function testComplete(array $input, array $expectedSuggestions): void
     {
         $command = new DebugRoutingCommand([], [
             'async' => 'messenger.transport.async',
@@ -154,5 +197,12 @@ class DebugRoutingCommandTest extends TestCase
             [''],
             ['async', 'sync'],
         ];
+    }
+
+    private function padWarning(string $message): string
+    {
+        $width = (int) getenv('COLUMNS') ?: 120;
+
+        return str_pad(sprintf(' [WARNING] %s', $message), $width);
     }
 }

@@ -138,7 +138,16 @@ class DebugRoutingCommand extends Command
      */
     private function getTransportNames(): array
     {
+        $serviceToAlias = array_flip($this->senderAliases);
         $transportNames = array_keys($this->senderAliases);
+
+        foreach ($this->sendersMap as $senders) {
+            foreach ($senders as $sender) {
+                $transportNames[] = $serviceToAlias[$sender] ?? $sender;
+            }
+        }
+
+        $transportNames = array_values(array_unique($transportNames));
         sort($transportNames);
 
         return $transportNames;
