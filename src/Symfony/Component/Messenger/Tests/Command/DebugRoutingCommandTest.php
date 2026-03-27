@@ -18,6 +18,8 @@ use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Tester\CommandCompletionTester;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Messenger\Command\DebugRoutingCommand;
+use Symfony\Component\Messenger\Tests\Fixtures\DummyMessage;
+use Symfony\Component\Messenger\Tests\Fixtures\DummyMessageWithAttribute;
 
 class DebugRoutingCommandTest extends TestCase
 {
@@ -75,6 +77,8 @@ class DebugRoutingCommandTest extends TestCase
             Messenger Routing
             =================
 
+             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Use --message to include attributes.
+
             async
             -----
 
@@ -128,6 +132,8 @@ class DebugRoutingCommandTest extends TestCase
             Messenger Routing
             =================
 
+             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Use --message to include attributes.
+
             sync
             ----
 
@@ -167,10 +173,80 @@ class DebugRoutingCommandTest extends TestCase
             Messenger Routing
             =================
 
+             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Use --message to include attributes.
+
             %s
 
 
             TXT, $this->padWarning('No Messenger sender is registered.')), $tester->getDisplay(true));
+    }
+
+    public function testOutputFiltersByMessageOptionWithWildcardNamespace(): void
+    {
+        $command = new DebugRoutingCommand(
+            [
+                'Symfony\Component\Messenger\Tests\Fixtures\*' => ['async'],
+                '*' => ['fallback'],
+            ],
+            [
+                'async' => 'messenger.transport.async',
+                'fallback' => 'messenger.transport.fallback',
+            ],
+        );
+        $tester = new CommandTester($command);
+
+        $tester->execute(['--message' => DummyMessage::class], ['decorated' => false]);
+
+        $message = DummyMessage::class;
+        $this->assertSame(sprintf(<<<'TXT'
+
+            Messenger Routing
+            =================
+
+             Note: output is based on the configuration routing map; the #[AsMessage] attribute on the given class is also considered. TransportNamesStamp is not.
+
+            %s
+            %s
+
+             This message is routed to the following senders:
+
+              async
+
+
+            TXT, $message, str_repeat('-', strlen($message))), $tester->getDisplay(true));
+    }
+
+    public function testOutputFiltersByMessageOptionIncludesAttributeRouting(): void
+    {
+        $command = new DebugRoutingCommand(
+            [],
+            [
+                'first_sender' => 'messenger.transport.first_sender',
+                'second_sender' => 'messenger.transport.second_sender',
+            ],
+        );
+        $tester = new CommandTester($command);
+
+        $tester->execute(['--message' => DummyMessageWithAttribute::class], ['decorated' => false]);
+
+        $message = DummyMessageWithAttribute::class;
+        $this->assertSame(sprintf(<<<'TXT'
+
+            Messenger Routing
+            =================
+
+             Note: output is based on the configuration routing map; the #[AsMessage] attribute on the given class is also considered. TransportNamesStamp is not.
+
+            %s
+            %s
+
+             This message is routed to the following senders:
+
+              first_sender
+              second_sender
+
+
+            TXT, $message, str_repeat('-', strlen($message))), $tester->getDisplay(true));
     }
 
     #[DataProvider('provideCompletionSuggestions')]

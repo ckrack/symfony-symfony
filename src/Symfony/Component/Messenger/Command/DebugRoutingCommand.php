@@ -18,8 +18,10 @@ use Symfony\Component\Console\Completion\CompletionSuggestions;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Messenger\Attribute\AsMessage;
 
 /**
  * A console command to debug Messenger routing information.
@@ -46,6 +48,7 @@ class DebugRoutingCommand extends Command
 
         $this
             ->addArgument('sender', InputArgument::OPTIONAL, \sprintf('The sender name (one of "%s")', implode('", "', $transportNames)))
+            ->addOption('message', 'm', InputOption::VALUE_REQUIRED, 'The fully-qualified class name of the message')
             ->setHelp(<<<'EOF'
                 The <info>%command.name%</info> command displays all messages routed to Messenger
                 senders:
@@ -55,6 +58,14 @@ class DebugRoutingCommand extends Command
                 Or for a specific sender only:
 
                   <info>php %command.full_name% async</info>
+
+                Or for a specific message only:
+
+                  <info>php %command.full_name% --message=App\Message\MyMessage</info>
+
+                Output is based on your configuration routing map.
+                It does not take TransportNamesStamp into account.
+                When using --message, the #[AsMessage] attribute on the given class is also considered.
 
                 EOF
             )
@@ -66,6 +77,15 @@ class DebugRoutingCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title('Messenger Routing');
 
+        $message = $input->getOption('message');
+        $senderArgument = $input->getArgument('sender');
+
+        if ($message && $senderArgument) {
+            throw new RuntimeException('Cannot combine the sender argument with the --message option.');
+        }
+
+        $this->renderRoutingContextNote($io, null !== $message);
+
         $transportNames = $this->getTransportNames();
 
         if (!$transportNames) {
@@ -74,7 +94,11 @@ class DebugRoutingCommand extends Command
             return 0;
         }
 
-        if ($transport = $input->getArgument('sender')) {
+        if ($message) {
+            return $this->displayMessageRouting($io, $message);
+        }
+
+        if ($transport = $senderArgument) {
             if (!\in_array($transport, $transportNames, true)) {
                 throw new RuntimeException(\sprintf('Sender "%s" does not exist. Known senders are "%s".', $transport, implode('", "', $transportNames)));
             }
@@ -102,6 +126,38 @@ class DebugRoutingCommand extends Command
             }
             $io->newLine();
         }
+
+        return 0;
+    }
+
+    private function displayMessageRouting(SymfonyStyle $io, string $message): int
+    {
+        if (!class_exists($message) && !interface_exists($message)) {
+            throw new RuntimeException(\sprintf('Message class "%s" does not exist.', $message));
+        }
+
+        $io->section($message);
+
+        $transportNames = $this->getTransportNamesForMessage($message);
+        $attributeSenders = $this->getTransportNamesFromAttributes($message);
+        if ($attributeSenders) {
+            $transportNames = array_merge($transportNames, $attributeSenders);
+            $transportNames = array_values(array_unique($transportNames));
+        }
+        sort($transportNames);
+
+        if (!$transportNames) {
+            $io->warning(\sprintf('No sender is routed to message "%s".', $message));
+
+            return 0;
+        }
+
+        $io->text('This message is routed to the following senders:');
+        $io->newLine();
+        foreach ($transportNames as $transportName) {
+            $io->writeln(\sprintf('  <fg=cyan>%s</>', $transportName));
+        }
+        $io->newLine();
 
         return 0;
     }
@@ -136,6 +192,69 @@ class DebugRoutingCommand extends Command
     /**
      * @return list<string>
      */
+    private function getTransportNamesForMessage(string $message): array
+    {
+        $serviceToAlias = array_flip($this->senderAliases);
+        $transportNames = [];
+
+        foreach ($this->listTypesForMessage($message) as $type) {
+            if (str_ends_with($type, '*') && $transportNames) {
+                // the '*' acts as a fallback, if other senders already matched
+                // with previous types, skip the senders bound to the fallback
+                continue;
+            }
+
+            foreach ($this->sendersMap[$type] ?? [] as $senderAlias) {
+                $transportName = $serviceToAlias[$senderAlias] ?? $senderAlias;
+                if (!\in_array($transportName, $transportNames, true)) {
+                    $transportNames[] = $transportName;
+                }
+            }
+        }
+
+        return $transportNames;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function getTransportNamesFromAttributes(string $message): array
+    {
+        $transportNames = [];
+        $serviceToAlias = array_flip($this->senderAliases);
+
+        foreach ([$message] + class_parents($message) + class_implements($message) as $class) {
+            $reflection = new \ReflectionClass($class);
+            foreach ($reflection->getAttributes(AsMessage::class, \ReflectionAttribute::IS_INSTANCEOF) as $refAttr) {
+                $asMessage = $refAttr->newInstance();
+                foreach ((array) $asMessage->transport as $transportName) {
+                    $transportName = $serviceToAlias[$transportName] ?? $transportName;
+                    if (!\in_array($transportName, $transportNames, true)) {
+                        $transportNames[] = $transportName;
+                    }
+                }
+            }
+        }
+
+        return $transportNames;
+    }
+
+    private function renderRoutingContextNote(SymfonyStyle $io, bool $includeAttributes): void
+    {
+        if ($includeAttributes) {
+            $io->text('Note: output is based on the configuration routing map; the #[AsMessage] attribute on the given class is also considered. TransportNamesStamp is not.');
+            $io->newLine();
+
+            return;
+        }
+
+        $io->text('Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Use --message to include attributes.');
+        $io->newLine();
+    }
+
+    /**
+     * @return list<string>
+     */
     private function getTransportNames(): array
     {
         $serviceToAlias = array_flip($this->senderAliases);
@@ -151,5 +270,32 @@ class DebugRoutingCommand extends Command
         sort($transportNames);
 
         return $transportNames;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function listTypesForMessage(string $message): array
+    {
+        return [$message => $message]
+            + (class_parents($message) ?: [])
+            + (class_implements($message) ?: [])
+            + self::listWildcards($message)
+            + ['*' => '*'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function listWildcards(string $type): array
+    {
+        $type .= '\\*';
+        $wildcards = [];
+        while ($i = strrpos($type, '\\', -3)) {
+            $type = substr_replace($type, '\\*', $i);
+            $wildcards[$type] = $type;
+        }
+
+        return $wildcards;
     }
 }
