@@ -22,6 +22,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Messenger\Attribute\AsMessage;
+use Symfony\Component\Messenger\Handler\HandlersLocator;
 
 /**
  * A console command to debug Messenger routing information.
@@ -197,7 +198,7 @@ class DebugRoutingCommand extends Command
         $serviceToAlias = array_flip($this->senderAliases);
         $transportNames = [];
 
-        foreach ($this->listTypesForMessage($message) as $type) {
+        foreach (HandlersLocator::listTypesForClass($message) as $type) {
             if (str_ends_with($type, '*') && $transportNames) {
                 // the '*' acts as a fallback, if other senders already matched
                 // with previous types, skip the senders bound to the fallback
@@ -270,32 +271,5 @@ class DebugRoutingCommand extends Command
         sort($transportNames);
 
         return $transportNames;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function listTypesForMessage(string $message): array
-    {
-        return [$message => $message]
-            + (class_parents($message) ?: [])
-            + (class_implements($message) ?: [])
-            + self::listWildcards($message)
-            + ['*' => '*'];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private static function listWildcards(string $type): array
-    {
-        $type .= '\\*';
-        $wildcards = [];
-        while ($i = strrpos($type, '\\', -3)) {
-            $type = substr_replace($type, '\\*', $i);
-            $wildcards[$type] = $type;
-        }
-
-        return $wildcards;
     }
 }
