@@ -77,7 +77,7 @@ class DebugRoutingCommandTest extends TestCase
             Messenger Routing
             =================
 
-             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Use --message to include attributes.
+             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Pass a message FQCN to include attributes.
 
             async
             -----
@@ -125,14 +125,14 @@ class DebugRoutingCommandTest extends TestCase
         );
         $tester = new CommandTester($command);
 
-        $tester->execute(['sender' => 'sync'], ['decorated' => false]);
+        $tester->execute(['filter' => 'sync'], ['decorated' => false]);
 
         $this->assertSame(<<<'TXT'
 
             Messenger Routing
             =================
 
-             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Use --message to include attributes.
+             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Pass a message FQCN to include attributes.
 
             sync
             ----
@@ -145,10 +145,10 @@ class DebugRoutingCommandTest extends TestCase
             TXT, $tester->getDisplay(true));
     }
 
-    public function testThrowsOnUnknownSenderArgument(): void
+    public function testThrowsOnUnknownFilterArgument(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Sender "invalid" does not exist. Known senders are "async", "sync".');
+        $this->expectExceptionMessage('Message class "invalid" does not exist.');
 
         $command = new DebugRoutingCommand(
             [],
@@ -158,7 +158,7 @@ class DebugRoutingCommandTest extends TestCase
             ],
         );
         $tester = new CommandTester($command);
-        $tester->execute(['sender' => 'invalid'], ['decorated' => false]);
+        $tester->execute(['filter' => 'invalid'], ['decorated' => false]);
     }
 
     public function testOutputWhenNoTransportIsRegistered(): void
@@ -172,8 +172,6 @@ class DebugRoutingCommandTest extends TestCase
 
             Messenger Routing
             =================
-
-             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Use --message to include attributes.
 
             %s
 
@@ -195,7 +193,7 @@ class DebugRoutingCommandTest extends TestCase
         );
         $tester = new CommandTester($command);
 
-        $tester->execute(['--message' => DummyMessage::class], ['decorated' => false]);
+        $tester->execute(['filter' => DummyMessage::class], ['decorated' => false]);
 
         $message = DummyMessage::class;
         $this->assertSame(sprintf(<<<'TXT'
@@ -227,7 +225,7 @@ class DebugRoutingCommandTest extends TestCase
         );
         $tester = new CommandTester($command);
 
-        $tester->execute(['--message' => DummyMessageWithAttribute::class], ['decorated' => false]);
+        $tester->execute(['filter' => DummyMessageWithAttribute::class], ['decorated' => false]);
 
         $message = DummyMessageWithAttribute::class;
         $this->assertSame(sprintf(<<<'TXT'

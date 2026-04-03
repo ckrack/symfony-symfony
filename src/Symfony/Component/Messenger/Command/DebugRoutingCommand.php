@@ -18,7 +18,6 @@ use Symfony\Component\Console\Completion\CompletionSuggestions;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Messenger\Attribute\AsMessage;
@@ -45,11 +44,8 @@ class DebugRoutingCommand extends Command
 
     protected function configure(): void
     {
-        $transportNames = $this->getTransportNames();
-
         $this
-            ->addArgument('sender', InputArgument::OPTIONAL, \sprintf('The sender name (one of "%s")', implode('", "', $transportNames)))
-            ->addOption('message', 'm', InputOption::VALUE_REQUIRED, 'The fully-qualified class name of the message')
+            ->addArgument('filter', InputArgument::OPTIONAL, 'A transport name or a message FQCN to filter by')
             ->setHelp(<<<'EOF'
                 The <info>%command.name%</info> command displays all messages routed to Messenger
                 senders:
@@ -62,11 +58,14 @@ class DebugRoutingCommand extends Command
 
                 Or for a specific message only:
 
-                  <info>php %command.full_name% --message=App\Message\MyMessage</info>
+                  <info>php %command.full_name% App\Message\MyMessage</info>
+
+                If the argument matches a known transport name, it filters by transport.
+                Otherwise, it is treated as a message FQCN.
 
                 Output is based on your configuration routing map.
                 It does not take TransportNamesStamp into account.
-                When using --message, the #[AsMessage] attribute on the given class is also considered.
+                When filtering by message, the #[AsMessage] attribute on the given class is also considered.
 
                 EOF
             )
@@ -78,15 +77,7 @@ class DebugRoutingCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title('Messenger Routing');
 
-        $message = $input->getOption('message');
-        $senderArgument = $input->getArgument('sender');
-
-        if ($message && $senderArgument) {
-            throw new RuntimeException('Cannot combine the sender argument with the --message option.');
-        }
-
-        $this->renderRoutingContextNote($io, null !== $message);
-
+        $filter = $input->getArgument('filter');
         $transportNames = $this->getTransportNames();
 
         if (!$transportNames) {
@@ -95,16 +86,17 @@ class DebugRoutingCommand extends Command
             return 0;
         }
 
-        if ($message) {
-            return $this->displayMessageRouting($io, $message);
-        }
+        if (null !== $filter) {
+            if (\in_array($filter, $transportNames, true)) {
+                $this->renderRoutingContextNote($io, false);
+                $transportNames = [$filter];
+            } else {
+                $this->renderRoutingContextNote($io, true);
 
-        if ($transport = $senderArgument) {
-            if (!\in_array($transport, $transportNames, true)) {
-                throw new RuntimeException(\sprintf('Sender "%s" does not exist. Known senders are "%s".', $transport, implode('", "', $transportNames)));
+                return $this->displayMessageRouting($io, $filter);
             }
-
-            $transportNames = [$transport];
+        } else {
+            $this->renderRoutingContextNote($io, false);
         }
 
         $messagesPerTransport = $this->getMessagesPerTransport();
@@ -165,8 +157,8 @@ class DebugRoutingCommand extends Command
 
     public function complete(CompletionInput $input, CompletionSuggestions $suggestions): void
     {
-        if ($input->mustSuggestArgumentValuesFor('sender')) {
-            $suggestions->suggestValues($this->getTransportNames());
+        if ($input->mustSuggestArgumentValuesFor('filter')) {
+            $suggestions->suggestValues(array_merge($this->getTransportNames(), array_keys($this->sendersMap)));
         }
     }
 
@@ -249,7 +241,7 @@ class DebugRoutingCommand extends Command
             return;
         }
 
-        $io->text('Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Use --message to include attributes.');
+        $io->text('Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Pass a message FQCN to include attributes.');
         $io->newLine();
     }
 
