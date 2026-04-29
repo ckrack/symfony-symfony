@@ -830,7 +830,7 @@ class MessengerPassTest extends TestCase
             ->addTag('messenger.receiver', ['alias' => 'third_sender']);
 
         $container->register('console.command.messenger_debug_routing', DebugRoutingCommand::class)
-            ->setArguments([[], []]);
+            ->setArguments([[], [], []]);
 
         (new MessengerPass())->process($container);
 

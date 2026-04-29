@@ -34,10 +34,12 @@ class DebugRoutingCommand extends Command
     /**
      * @param array<string, list<string>>   $sendersMap
      * @param array<string, string>         $senderAliases
+     * @param array<string, list<string>>   $attributeMessages Message classes discovered via #[AsMessage] attribute mapped to their transports
      */
     public function __construct(
         private readonly array $sendersMap,
         private readonly array $senderAliases = [],
+        private readonly array $attributeMessages = [],
     ) {
         parent::__construct();
     }
@@ -63,9 +65,8 @@ class DebugRoutingCommand extends Command
                 If the argument matches a known transport name, it filters by transport.
                 Otherwise, it is treated as a message FQCN.
 
-                Output is based on your configuration routing map.
+                Output is based on your configuration routing map and #[AsMessage] attributes.
                 It does not take TransportNamesStamp into account.
-                When filtering by message, the #[AsMessage] attribute on the given class is also considered.
 
                 EOF
             )
@@ -86,17 +87,14 @@ class DebugRoutingCommand extends Command
             return 0;
         }
 
+        $this->renderRoutingContextNote($io);
+
         if (null !== $filter) {
             if (\in_array($filter, $transportNames, true)) {
-                $this->renderRoutingContextNote($io, false);
                 $transportNames = [$filter];
             } else {
-                $this->renderRoutingContextNote($io, true);
-
                 return $this->displayMessageRouting($io, $filter);
             }
-        } else {
-            $this->renderRoutingContextNote($io, false);
         }
 
         $messagesPerTransport = $this->getMessagesPerTransport();
@@ -179,6 +177,15 @@ class DebugRoutingCommand extends Command
             }
         }
 
+        foreach ($this->attributeMessages as $class => $transports) {
+            foreach ($transports as $transportName) {
+                $transportName = $serviceToAlias[$transportName] ?? $transportName;
+                if (!isset($result[$transportName]) || !\in_array($class, $result[$transportName], true)) {
+                    $result[$transportName][] = $class;
+                }
+            }
+        }
+
         return $result;
     }
 
@@ -232,16 +239,9 @@ class DebugRoutingCommand extends Command
         return $transportNames;
     }
 
-    private function renderRoutingContextNote(SymfonyStyle $io, bool $includeAttributes): void
+    private function renderRoutingContextNote(SymfonyStyle $io): void
     {
-        if ($includeAttributes) {
-            $io->text('Note: output is based on the configuration routing map; the #[AsMessage] attribute on the given class is also considered. TransportNamesStamp is not.');
-            $io->newLine();
-
-            return;
-        }
-
-        $io->text('Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Pass a message FQCN to include attributes.');
+        $io->text('Note: output is based on the configuration routing map and #[AsMessage] attributes. TransportNamesStamp is not considered.');
         $io->newLine();
     }
 

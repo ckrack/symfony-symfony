@@ -773,6 +773,9 @@ class FrameworkExtension extends Extension
             ->addTag('validator.initializer');
         $container->registerForAutoconfiguration(BatchHandlerInterface::class)
             ->addTag('messenger.message_handler');
+        $container->registerAttributeForAutoconfiguration(AsMessage::class, static function (ChildDefinition $definition, AsMessage $attribute): void {
+            $definition->addTag('messenger.message', ['transport' => $attribute->transport]);
+        });
         $container->registerForAutoconfiguration(MessengerTransportFactoryInterface::class)
             ->addTag('messenger.transport_factory');
         $container->registerForAutoconfiguration(MimeTypeGuesserInterface::class)

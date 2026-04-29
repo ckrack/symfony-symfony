@@ -193,6 +193,7 @@ return static function (ContainerConfigurator $container) {
             ->args([
                 [], // Message to senders mapping
                 [], // Sender aliases mapping
+                [], // Message classes discovered via #[AsMessage] resource tag
             ])
             ->tag('console.command')
 

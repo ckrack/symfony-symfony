@@ -426,9 +426,19 @@ class MessengerPass implements CompilerPassInterface
             }
         }
 
+        $attributeMessages = [];
+        foreach ($container->findTaggedResourceIds('messenger.message', false) as $id => $tags) {
+            foreach ($tags as $tag) {
+                foreach ((array) ($tag['transport'] ?? []) as $transport) {
+                    $attributeMessages[$id][] = $transport;
+                }
+            }
+        }
+
         $container->getDefinition('console.command.messenger_debug_routing')
             ->replaceArgument(0, $sendersMap)
             ->replaceArgument(1, $senderAliases)
+            ->replaceArgument(2, $attributeMessages)
         ;
     }
 }

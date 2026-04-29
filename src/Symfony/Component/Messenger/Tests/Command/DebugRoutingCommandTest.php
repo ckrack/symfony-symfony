@@ -77,7 +77,7 @@ class DebugRoutingCommandTest extends TestCase
             Messenger Routing
             =================
 
-             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Pass a message FQCN to include attributes.
+             Note: output is based on the configuration routing map and #[AsMessage] attributes. TransportNamesStamp is not considered.
 
             async
             -----
@@ -132,7 +132,7 @@ class DebugRoutingCommandTest extends TestCase
             Messenger Routing
             =================
 
-             Note: output is based on the configuration routing map only. TransportNamesStamp and #[AsMessage] are not considered. Pass a message FQCN to include attributes.
+             Note: output is based on the configuration routing map and #[AsMessage] attributes. TransportNamesStamp is not considered.
 
             sync
             ----
@@ -201,7 +201,7 @@ class DebugRoutingCommandTest extends TestCase
             Messenger Routing
             =================
 
-             Note: output is based on the configuration routing map; the #[AsMessage] attribute on the given class is also considered. TransportNamesStamp is not.
+             Note: output is based on the configuration routing map and #[AsMessage] attributes. TransportNamesStamp is not considered.
 
             %s
             %s
@@ -233,7 +233,7 @@ class DebugRoutingCommandTest extends TestCase
             Messenger Routing
             =================
 
-             Note: output is based on the configuration routing map; the #[AsMessage] attribute on the given class is also considered. TransportNamesStamp is not.
+             Note: output is based on the configuration routing map and #[AsMessage] attributes. TransportNamesStamp is not considered.
 
             %s
             %s
